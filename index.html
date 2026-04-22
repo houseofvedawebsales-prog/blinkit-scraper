@@ -1,0 +1,942 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Blinkit Scout — Inventory Intelligence</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=JetBrains+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #0d0d0d;
+  --surface: #141414;
+  --surface2: #1c1c1c;
+  --border: #262626;
+  --yellow: #f0c000;
+  --yellow-dim: rgba(240,192,0,0.12);
+  --yellow-glow: 0 0 32px rgba(240,192,0,0.18);
+  --green: #00c97a;
+  --red: #ff4757;
+  --blue: #4ea8ff;
+  --text: #f0f0f0;
+  --muted: #606060;
+  --font-display: 'Syne', sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+}
+*, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+html { scroll-behavior: smooth; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-mono);
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* ── BG GRID ── */
+body::before {
+  content: '';
+  position: fixed; inset: 0; z-index: 0;
+  background-image:
+    linear-gradient(rgba(240,192,0,0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(240,192,0,0.03) 1px, transparent 1px);
+  background-size: 40px 40px;
+  pointer-events: none;
+}
+
+/* ── HEADER ── */
+header {
+  position: relative; z-index: 10;
+  padding: 28px 48px;
+  display: flex; align-items: center; justify-content: space-between;
+  border-bottom: 1px solid var(--border);
+  background: rgba(13,13,13,0.9);
+  backdrop-filter: blur(12px);
+}
+.logo {
+  display: flex; align-items: center; gap: 14px;
+}
+.logo-mark {
+  width: 40px; height: 40px;
+  background: var(--yellow);
+  border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 22px;
+  flex-shrink: 0;
+}
+.logo-text {
+  font-family: var(--font-display);
+  font-weight: 800; font-size: 22px;
+  letter-spacing: -0.5px;
+  color: var(--text);
+}
+.logo-text span { color: var(--yellow); }
+.header-badge {
+  background: var(--yellow-dim);
+  border: 1px solid rgba(240,192,0,0.25);
+  color: var(--yellow);
+  padding: 5px 14px;
+  border-radius: 100px;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+
+/* ── HERO ── */
+.hero {
+  position: relative; z-index: 5;
+  padding: 72px 48px 56px;
+  max-width: 880px;
+}
+.hero-eyebrow {
+  font-size: 11px;
+  color: var(--yellow);
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  margin-bottom: 16px;
+}
+.hero-title {
+  font-family: var(--font-display);
+  font-size: clamp(36px, 5vw, 64px);
+  font-weight: 800;
+  line-height: 1.05;
+  letter-spacing: -2px;
+  margin-bottom: 16px;
+}
+.hero-title em {
+  font-style: normal;
+  color: var(--yellow);
+}
+.hero-sub {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.8;
+  max-width: 520px;
+}
+
+/* ── MAIN PANEL ── */
+.main {
+  position: relative; z-index: 5;
+  padding: 0 48px 80px;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+/* ── SEARCH CARD ── */
+.search-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 36px 40px;
+  margin-bottom: 32px;
+  position: relative;
+  overflow: hidden;
+}
+.search-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0; height: 2px;
+  background: linear-gradient(90deg, var(--yellow), transparent);
+}
+.search-card-title {
+  font-family: var(--font-display);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 28px;
+}
+.input-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr auto;
+  gap: 16px;
+  align-items: end;
+}
+.field { display: flex; flex-direction: column; gap: 8px; }
+.field label {
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--muted);
+  letter-spacing: 2px;
+  text-transform: uppercase;
+}
+.field input {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 14px 18px;
+  border-radius: 12px;
+  font-family: var(--font-mono);
+  font-size: 14px;
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  width: 100%;
+}
+.field input:focus {
+  border-color: var(--yellow);
+  box-shadow: var(--yellow-glow);
+}
+.field input::placeholder { color: var(--muted); }
+
+.btn-scrape {
+  background: var(--yellow);
+  color: #000;
+  border: none;
+  padding: 14px 36px;
+  border-radius: 12px;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 15px;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+  display: flex; align-items: center; gap: 8px;
+  height: 50px;
+}
+.btn-scrape:hover:not(:disabled) {
+  background: #ffd700;
+  transform: translateY(-1px);
+  box-shadow: 0 8px 24px rgba(240,192,0,0.3);
+}
+.btn-scrape:disabled {
+  opacity: 0.5; cursor: not-allowed; transform: none;
+}
+.btn-scrape .spinner {
+  width: 16px; height: 16px;
+  border: 2px solid rgba(0,0,0,0.3);
+  border-top-color: #000;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+  display: none;
+}
+.btn-scrape.loading .spinner { display: block; }
+.btn-scrape.loading .btn-text { display: none; }
+
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── STATUS BAR ── */
+.status-bar {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 14px 20px;
+  display: flex; align-items: center; gap: 12px;
+  margin-bottom: 32px;
+  font-size: 12px;
+  display: none;
+}
+.status-bar.visible { display: flex; }
+.status-dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: var(--yellow);
+  animation: pulse-dot 1s ease infinite;
+  flex-shrink: 0;
+}
+.status-bar.done .status-dot { background: var(--green); animation: none; }
+.status-bar.error .status-dot { background: var(--red); animation: none; }
+@keyframes pulse-dot { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.5;transform:scale(0.7)} }
+.status-text { color: var(--text); flex: 1; }
+.status-step { color: var(--muted); font-size: 11px; }
+
+/* ── PROGRESS STEPS ── */
+.steps {
+  display: flex; gap: 6px;
+  margin-bottom: 32px;
+  display: none;
+}
+.steps.visible { display: flex; }
+.step {
+  flex: 1;
+  height: 3px;
+  background: var(--border);
+  border-radius: 2px;
+  overflow: hidden;
+  position: relative;
+}
+.step.active::after {
+  content: '';
+  position: absolute; top: 0; left: 0;
+  width: 100%; height: 100%;
+  background: var(--yellow);
+  animation: step-fill 0.8s ease forwards;
+}
+.step.done { background: var(--green); }
+@keyframes step-fill { from{width:0} to{width:100%} }
+
+/* ── RESULTS SECTION ── */
+.results-header {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 20px;
+}
+.results-title {
+  font-family: var(--font-display);
+  font-size: 18px; font-weight: 700;
+}
+.results-meta {
+  font-size: 11px; color: var(--muted);
+  display: flex; align-items: center; gap: 16px;
+}
+.btn-export {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 8px 20px;
+  border-radius: 8px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex; align-items: center; gap: 6px;
+}
+.btn-export:hover { border-color: var(--yellow); color: var(--yellow); }
+.btn-export:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* ── PRODUCT TABLE ── */
+.table-wrap {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  overflow: hidden;
+}
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+thead tr {
+  border-bottom: 1px solid var(--border);
+  background: var(--surface2);
+}
+thead th {
+  padding: 14px 20px;
+  text-align: left;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--muted);
+  white-space: nowrap;
+}
+tbody tr {
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+  transition: background 0.15s;
+}
+tbody tr:last-child { border-bottom: none; }
+tbody tr:hover { background: rgba(255,255,255,0.02); }
+tbody td {
+  padding: 16px 20px;
+  vertical-align: middle;
+}
+
+/* ── RANK BADGE ── */
+.rank {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 28px; height: 28px;
+  border-radius: 8px;
+  font-weight: 700; font-size: 12px;
+  background: var(--surface2);
+  color: var(--muted);
+}
+.rank.r1 { background: rgba(240,192,0,0.15); color: var(--yellow); }
+.rank.r2 { background: rgba(200,200,210,0.1); color: #b0b0c0; }
+.rank.r3 { background: rgba(180,100,50,0.15); color: #c87850; }
+
+/* ── PRODUCT NAME ── */
+.prod-name {
+  font-weight: 500;
+  max-width: 280px;
+  line-height: 1.4;
+}
+.prod-unit {
+  font-size: 11px;
+  color: var(--muted);
+  margin-top: 3px;
+}
+
+/* ── PRICE ── */
+.price {
+  font-weight: 600;
+  color: var(--text);
+  font-size: 14px;
+}
+
+/* ── DELIVERY ── */
+.delivery {
+  color: var(--green);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+/* ── LISTING TYPE ── */
+.tag {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 3px 10px;
+  border-radius: 100px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+}
+.tag-organic { background: rgba(0,201,122,0.12); color: var(--green); }
+.tag-ad      { background: rgba(78,168,255,0.12); color: var(--blue); }
+
+/* ── INVENTORY BAR ── */
+.inv-wrap { display: flex; align-items: center; gap: 10px; min-width: 140px; }
+.inv-bar-track {
+  flex: 1;
+  height: 5px;
+  background: var(--border);
+  border-radius: 3px;
+  overflow: hidden;
+}
+.inv-bar-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.8s ease;
+}
+.inv-num { font-weight: 600; font-size: 13px; min-width: 28px; text-align: right; }
+.inv-high   .inv-bar-fill { background: var(--green); }
+.inv-mid    .inv-bar-fill { background: var(--yellow); }
+.inv-low    .inv-bar-fill { background: var(--red); }
+.inv-high   .inv-num { color: var(--green); }
+.inv-mid    .inv-num { color: var(--yellow); }
+.inv-low    .inv-num { color: var(--red); }
+
+/* ── EMPTY STATE ── */
+.empty-state {
+  padding: 80px 40px;
+  text-align: center;
+  display: none;
+}
+.empty-state.visible { display: block; }
+.empty-icon { font-size: 48px; margin-bottom: 16px; opacity: 0.4; }
+.empty-title {
+  font-family: var(--font-display);
+  font-size: 18px; font-weight: 700;
+  color: var(--muted);
+  margin-bottom: 8px;
+}
+.empty-sub { font-size: 12px; color: var(--muted); opacity: 0.6; }
+
+/* ── ERROR CARD ── */
+.error-card {
+  background: rgba(255,71,87,0.08);
+  border: 1px solid rgba(255,71,87,0.2);
+  border-radius: 14px;
+  padding: 20px 24px;
+  margin-bottom: 24px;
+  display: none;
+  color: var(--red);
+  font-size: 13px;
+  line-height: 1.6;
+}
+.error-card.visible { display: block; }
+.error-card strong { font-weight: 600; display: block; margin-bottom: 4px; }
+
+/* ── SUMMARY STRIP ── */
+.summary {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14px;
+  margin-bottom: 28px;
+}
+.summary-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 18px 20px;
+}
+.summary-label {
+  font-size: 10px;
+  color: var(--muted);
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  margin-bottom: 8px;
+}
+.summary-val {
+  font-family: var(--font-display);
+  font-size: 26px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+/* ── SKELETON ── */
+.skeleton {
+  background: linear-gradient(90deg, var(--surface2) 25%, var(--surface) 50%, var(--surface2) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.4s infinite;
+  border-radius: 6px;
+  height: 14px;
+}
+@keyframes shimmer { 0%{background-position:200%} 100%{background-position:-200%} }
+
+/* ── HISTORY SECTION ── */
+.history-section {
+  margin-top: 48px;
+}
+.history-title {
+  font-family: var(--font-display);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 16px;
+  display: flex; align-items: center; justify-content: space-between;
+}
+.btn-clear-hist {
+  background: transparent; border: none;
+  color: var(--muted); font-family: var(--font-mono);
+  font-size: 11px; cursor: pointer;
+  transition: color 0.2s;
+}
+.btn-clear-hist:hover { color: var(--red); }
+.history-list {
+  display: flex; flex-direction: column; gap: 8px;
+}
+.history-item {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px 18px;
+  display: flex; align-items: center; justify-content: space-between;
+  font-size: 12px;
+  cursor: pointer;
+  transition: border-color 0.2s;
+}
+.history-item:hover { border-color: var(--yellow); }
+.history-kw { font-weight: 600; color: var(--text); }
+.history-meta { color: var(--muted); font-size: 11px; }
+.history-arrow { color: var(--muted); font-size: 16px; transition: transform 0.2s; }
+.history-item:hover .history-arrow { transform: translateX(3px); color: var(--yellow); }
+
+/* ── TOOLTIP ── */
+[title] { cursor: help; }
+
+@media (max-width: 900px) {
+  header, .hero, .main { padding-left: 20px; padding-right: 20px; }
+  .input-row { grid-template-columns: 1fr; }
+  .summary { grid-template-columns: 1fr 1fr; }
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <div class="logo-mark">⚡</div>
+    <div class="logo-text">Blinkit<span>Scout</span></div>
+  </div>
+  <div class="header-badge">Inventory Intelligence</div>
+</header>
+
+<div class="hero">
+  <div class="hero-eyebrow">Blinkit Search Scraper</div>
+  <h1 class="hero-title">Find what's <em>really</em><br>on the shelf</h1>
+  <p class="hero-sub">Enter a keyword and PIN code to instantly fetch the top 10 Blinkit search results — with product name, price, delivery time, listing type, and available inventory count.</p>
+</div>
+
+<div class="main">
+
+  <!-- SEARCH CARD -->
+  <div class="search-card">
+    <div class="search-card-title">Search Parameters</div>
+    <div class="input-row">
+      <div class="field">
+        <label>Keyword</label>
+        <input type="text" id="inp-keyword" placeholder="e.g. bread, milk, chips..." autocomplete="off">
+      </div>
+      <div class="field">
+        <label>PIN Code</label>
+        <input type="text" id="inp-pin" placeholder="e.g. 110001" maxlength="6" autocomplete="off">
+      </div>
+      <button class="btn-scrape" id="btn-scrape" onclick="startScrape()">
+        <div class="spinner"></div>
+        <span class="btn-text">🔍 Scrape Now</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- PROGRESS STEPS -->
+  <div class="steps" id="steps">
+    <div class="step" id="step-1"></div>
+    <div class="step" id="step-2"></div>
+    <div class="step" id="step-3"></div>
+    <div class="step" id="step-4"></div>
+    <div class="step" id="step-5"></div>
+  </div>
+
+  <!-- STATUS BAR -->
+  <div class="status-bar" id="status-bar">
+    <div class="status-dot"></div>
+    <div class="status-text" id="status-text">Initializing...</div>
+    <div class="status-step" id="status-step"></div>
+  </div>
+
+  <!-- ERROR CARD -->
+  <div class="error-card" id="error-card">
+    <strong>Scrape Failed</strong>
+    <span id="error-msg"></span>
+  </div>
+
+  <!-- SUMMARY -->
+  <div class="summary" id="summary" style="display:none">
+    <div class="summary-card">
+      <div class="summary-label">Products Found</div>
+      <div class="summary-val" id="s-count" style="color:var(--yellow)">—</div>
+    </div>
+    <div class="summary-card">
+      <div class="summary-label">Avg Inventory</div>
+      <div class="summary-val" id="s-avg-inv" style="color:var(--green)">—</div>
+    </div>
+    <div class="summary-card">
+      <div class="summary-label">Ad Listings</div>
+      <div class="summary-val" id="s-ads" style="color:var(--blue)">—</div>
+    </div>
+    <div class="summary-card">
+      <div class="summary-label">Organic Listings</div>
+      <div class="summary-val" id="s-organic" style="color:var(--green)">—</div>
+    </div>
+  </div>
+
+  <!-- RESULTS -->
+  <div id="results-section" style="display:none">
+    <div class="results-header">
+      <div class="results-title" id="results-title">Search Results</div>
+      <div class="results-meta">
+        <span id="results-meta-text"></span>
+        <button class="btn-export" id="btn-export-json" onclick="exportJSON()" disabled>⬇ JSON</button>
+        <button class="btn-export" id="btn-export-csv" onclick="exportCSV()" disabled>⬇ CSV</button>
+      </div>
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Product</th>
+            <th>Price</th>
+            <th>Delivery</th>
+            <th>Listing</th>
+            <th>Available Inventory</th>
+          </tr>
+        </thead>
+        <tbody id="results-tbody"></tbody>
+      </table>
+
+      <div class="empty-state" id="empty-state">
+        <div class="empty-icon">📭</div>
+        <div class="empty-title">No results yet</div>
+        <div class="empty-sub">Enter a keyword and PIN code above to start scraping.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- HISTORY -->
+  <div class="history-section" id="history-section" style="display:none">
+    <div class="history-title">
+      Recent Searches
+      <button class="btn-clear-hist" onclick="clearHistory()">Clear all</button>
+    </div>
+    <div class="history-list" id="history-list"></div>
+  </div>
+
+</div><!-- /main -->
+
+<script>
+// ══════════════════════════════════════════
+//  CONFIG — point this to your backend URL
+//  Local dev:  http://localhost:8000
+//  Production: https://your-backend.railway.app
+// ══════════════════════════════════════════
+const API_BASE = window.location.hostname === 'localhost'
+  ? 'http://localhost:8000'
+  : 'https://YOUR_BACKEND_URL_HERE'; // ← replace after deploying backend
+
+// ══════════════════════════════════════════
+//  STATE
+// ══════════════════════════════════════════
+let currentResults = [];
+let currentKeyword = '';
+let currentPin = '';
+
+// ══════════════════════════════════════════
+//  INIT
+// ══════════════════════════════════════════
+window.onload = () => {
+  loadHistory();
+  document.getElementById('inp-keyword').addEventListener('keydown', e => { if(e.key==='Enter') document.getElementById('inp-pin').focus(); });
+  document.getElementById('inp-pin').addEventListener('keydown', e => { if(e.key==='Enter') startScrape(); });
+  // Show empty state by default
+  document.getElementById('results-section').style.display = 'block';
+  document.getElementById('empty-state').classList.add('visible');
+};
+
+// ══════════════════════════════════════════
+//  SCRAPE
+// ══════════════════════════════════════════
+async function startScrape() {
+  const keyword = document.getElementById('inp-keyword').value.trim();
+  const pin     = document.getElementById('inp-pin').value.trim();
+
+  if (!keyword) { flashInput('inp-keyword'); return; }
+  if (!pin || !/^\d{6}$/.test(pin)) { flashInput('inp-pin'); return; }
+
+  currentKeyword = keyword;
+  currentPin     = pin;
+  currentResults = [];
+
+  setLoading(true);
+  showStatus('Connecting to Blinkit...', 'Step 1/5');
+  setStep(1);
+  hideError();
+  clearTable();
+  document.getElementById('summary').style.display = 'none';
+  document.getElementById('empty-state').classList.remove('visible');
+
+  try {
+    // Step 1: Start scrape job (server-sent events or polling)
+    showStatus(`Setting delivery location to PIN ${pin}...`, 'Step 2/5');
+    setStep(2);
+
+    const response = await fetch(`${API_BASE}/scrape`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ keyword, pincode: pin })
+    });
+
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({ detail: 'Unknown server error' }));
+      throw new Error(err.detail || `HTTP ${response.status}`);
+    }
+
+    showStatus(`Searching for "${keyword}"...`, 'Step 3/5');
+    setStep(3);
+
+    const data = await response.json();
+
+    showStatus(`Checking inventory for ${data.products.length} products...`, 'Step 4/5');
+    setStep(4);
+
+    await sleep(400); // small UX pause
+
+    showStatus(`Done! Found ${data.products.length} results.`, 'Step 5/5');
+    setStep(5);
+
+    currentResults = data.products;
+    renderResults(data.products, keyword, pin);
+    saveHistory(keyword, pin, data.products.length);
+
+  } catch (err) {
+    showError(err.message || 'Could not connect to scraper backend. Make sure the backend server is running.');
+    setStatusError('Scrape failed');
+  } finally {
+    setLoading(false);
+  }
+}
+
+// ══════════════════════════════════════════
+//  RENDER
+// ══════════════════════════════════════════
+function renderResults(products, keyword, pin) {
+  const tbody = document.getElementById('results-tbody');
+  tbody.innerHTML = '';
+
+  if (!products.length) {
+    document.getElementById('empty-state').classList.add('visible');
+    return;
+  }
+
+  const maxInv = Math.max(...products.map(p => p['Available Inventory'] || 0), 1);
+
+  products.forEach(p => {
+    const rank     = p['Rank'];
+    const name     = p['Product Name'] || '—';
+    const unit     = p['Unit Quantity'] || '';
+    const price    = p['Selling Price'] || '—';
+    const delivery = p['Delivery Time'] || '—';
+    const type     = p['Listing Type'] || 'Organic';
+    const inv      = p['Available Inventory'] || 0;
+
+    const invPct   = Math.min(100, Math.round((inv / maxInv) * 100));
+    const invClass = inv >= 10 ? 'inv-high' : inv >= 4 ? 'inv-mid' : 'inv-low';
+    const rankCls  = rank === 1 ? 'r1' : rank === 2 ? 'r2' : rank === 3 ? 'r3' : '';
+
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td><span class="rank ${rankCls}">${rank}</span></td>
+      <td>
+        <div class="prod-name">${escHtml(name)}</div>
+        ${unit ? `<div class="prod-unit">${escHtml(unit)}</div>` : ''}
+      </td>
+      <td><span class="price">${escHtml(price)}</span></td>
+      <td><span class="delivery">${escHtml(delivery)}</span></td>
+      <td><span class="tag ${type==='Ad'?'tag-ad':'tag-organic'}">${type==='Ad'?'📢 Ad':'✅ Organic'}</span></td>
+      <td>
+        <div class="inv-wrap ${invClass}">
+          <div class="inv-bar-track"><div class="inv-bar-fill" style="width:${invPct}%"></div></div>
+          <span class="inv-num">${inv}</span>
+        </div>
+      </td>`;
+    tbody.appendChild(tr);
+  });
+
+  // Summary
+  const ads     = products.filter(p => p['Listing Type'] === 'Ad').length;
+  const organic = products.length - ads;
+  const avgInv  = Math.round(products.reduce((s,p) => s + (p['Available Inventory']||0), 0) / products.length);
+
+  document.getElementById('s-count').textContent   = products.length;
+  document.getElementById('s-avg-inv').textContent = avgInv;
+  document.getElementById('s-ads').textContent     = ads;
+  document.getElementById('s-organic').textContent = organic;
+  document.getElementById('summary').style.display = 'grid';
+
+  document.getElementById('results-title').textContent = `Results for "${keyword}" — PIN ${pin}`;
+  document.getElementById('results-meta-text').textContent = `${products.length} products · ${new Date().toLocaleTimeString()}`;
+
+  document.getElementById('btn-export-json').disabled = false;
+  document.getElementById('btn-export-csv').disabled  = false;
+}
+
+function clearTable() {
+  document.getElementById('results-tbody').innerHTML = '';
+  document.getElementById('btn-export-json').disabled = true;
+  document.getElementById('btn-export-csv').disabled  = true;
+}
+
+// ══════════════════════════════════════════
+//  EXPORT
+// ══════════════════════════════════════════
+function exportJSON() {
+  if (!currentResults.length) return;
+  const ts   = new Date().toISOString().slice(0,16).replace('T','-').replace(':','-');
+  const name = `blinkit_${currentPin}_${currentKeyword.replace(/\s+/g,'_')}_${ts}.json`;
+  downloadBlob(JSON.stringify(currentResults, null, 2), name, 'application/json');
+}
+
+function exportCSV() {
+  if (!currentResults.length) return;
+  const keys = Object.keys(currentResults[0]);
+  const rows = [keys.join(','), ...currentResults.map(r =>
+    keys.map(k => {
+      let v = String(r[k] ?? '');
+      if (v.includes(',') || v.includes('"')) v = `"${v.replace(/"/g,'""')}"`;
+      return v;
+    }).join(',')
+  )];
+  const ts   = new Date().toISOString().slice(0,16).replace('T','-').replace(':','-');
+  const name = `blinkit_${currentPin}_${currentKeyword.replace(/\s+/g,'_')}_${ts}.csv`;
+  downloadBlob(rows.join('\n'), name, 'text/csv');
+}
+
+function downloadBlob(content, filename, type) {
+  const a   = document.createElement('a');
+  a.href    = URL.createObjectURL(new Blob([content], { type }));
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+// ══════════════════════════════════════════
+//  HISTORY
+// ══════════════════════════════════════════
+function saveHistory(keyword, pin, count) {
+  const hist = getHistory();
+  hist.unshift({ keyword, pin, count, ts: Date.now() });
+  localStorage.setItem('blinkit_history', JSON.stringify(hist.slice(0, 10)));
+  renderHistory();
+}
+
+function getHistory() {
+  try { return JSON.parse(localStorage.getItem('blinkit_history') || '[]'); } catch { return []; }
+}
+
+function clearHistory() {
+  localStorage.removeItem('blinkit_history');
+  renderHistory();
+}
+
+function loadHistory() { renderHistory(); }
+
+function renderHistory() {
+  const hist = getHistory();
+  const sec  = document.getElementById('history-section');
+  const list = document.getElementById('history-list');
+  if (!hist.length) { sec.style.display = 'none'; return; }
+  sec.style.display = 'block';
+  list.innerHTML = hist.map((h, i) => `
+    <div class="history-item" onclick="reuseSearch('${escHtml(h.keyword)}','${h.pin}')">
+      <div>
+        <div class="history-kw">${escHtml(h.keyword)} <span style="color:var(--muted);font-weight:400">· ${h.pin}</span></div>
+        <div class="history-meta">${h.count} products · ${new Date(h.ts).toLocaleString()}</div>
+      </div>
+      <span class="history-arrow">→</span>
+    </div>`).join('');
+}
+
+function reuseSearch(keyword, pin) {
+  document.getElementById('inp-keyword').value = keyword;
+  document.getElementById('inp-pin').value     = pin;
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+// ══════════════════════════════════════════
+//  UI HELPERS
+// ══════════════════════════════════════════
+function setLoading(on) {
+  const btn = document.getElementById('btn-scrape');
+  btn.disabled = on;
+  btn.classList.toggle('loading', on);
+  document.getElementById('steps').classList.toggle('visible', on || false);
+}
+
+function showStatus(msg, step) {
+  const bar = document.getElementById('status-bar');
+  bar.className = 'status-bar visible';
+  document.getElementById('status-text').textContent = msg;
+  document.getElementById('status-step').textContent = step || '';
+}
+
+function setStatusError(msg) {
+  const bar = document.getElementById('status-bar');
+  bar.className = 'status-bar visible error';
+  document.getElementById('status-text').textContent = msg;
+}
+
+function setStep(n) {
+  for (let i = 1; i <= 5; i++) {
+    const s = document.getElementById(`step-${i}`);
+    s.className = 'step' + (i < n ? ' done' : i === n ? ' active' : '');
+  }
+}
+
+function showError(msg) {
+  const card = document.getElementById('error-card');
+  document.getElementById('error-msg').textContent = msg;
+  card.classList.add('visible');
+}
+
+function hideError() {
+  document.getElementById('error-card').classList.remove('visible');
+}
+
+function flashInput(id) {
+  const el = document.getElementById(id);
+  el.style.borderColor = 'var(--red)';
+  el.focus();
+  setTimeout(() => el.style.borderColor = '', 1500);
+}
+
+function escHtml(str) {
+  return String(str)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+</script>
+</body>
+</html>
