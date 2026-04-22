@@ -1,6 +1,6 @@
 """
 scraper.py — Blinkit Selenium scraper
-Extracted from fast.py and wrapped into run_scrape(keyword, pincode) -> List[dict]
+Works locally (webdriver-manager) AND on Railway (system chromium)
 """
 
 from selenium import webdriver
@@ -15,15 +15,16 @@ from selenium.common.exceptions import (
     ElementClickInterceptedException, StaleElementReferenceException
 )
 from time import sleep
+import os
 import logging
 
 logger = logging.getLogger("blinkit-scraper")
 
 
 def _make_driver() -> webdriver.Chrome:
-    """Create and return a configured Chrome driver."""
+    """Create Chrome driver — works locally and on Railway."""
     opts = Options()
-    opts.add_argument("--headless=new")           # headless for server deployment
+    opts.add_argument("--headless=new")
     opts.add_argument("--no-sandbox")
     opts.add_argument("--disable-dev-shm-usage")
     opts.add_argument("--window-size=1920,1080")
@@ -34,14 +35,58 @@ def _make_driver() -> webdriver.Chrome:
     opts.add_argument("--remote-debugging-port=0")
     opts.add_argument("--disable-blink-features=AutomationControlled")
 
-    # Try webdriver-manager first, fall back to system chromedriver
-    try:
-        from webdriver_manager.chrome import ChromeDriverManager
-        service = Service(ChromeDriverManager().install())
-    except Exception:
-        service = Service()   # expects chromedriver on PATH
+    # On Railway/Linux, chromium is installed via nix at a known path
+    # On local machine, webdriver-manager finds chromedriver automatically
+    chromium_path   = "/nix/store"  # base — we search dynamically below
+    chromedriver_bin = _find_chromedriver()
+    chromium_bin     = _find_chromium()
+
+    if chromium_bin:
+        opts.binary_location = chromium_bin
+        logger.info(f"Using chromium at: {chromium_bin}")
+
+    if chromedriver_bin:
+        service = Service(chromedriver_bin)
+        logger.info(f"Using chromedriver at: {chromedriver_bin}")
+    else:
+        # Fallback: webdriver-manager (local dev)
+        try:
+            from webdriver_manager.chrome import ChromeDriverManager
+            service = Service(ChromeDriverManager().install())
+            logger.info("Using webdriver-manager chromedriver")
+        except Exception:
+            service = Service()
+            logger.info("Using system chromedriver from PATH")
 
     return webdriver.Chrome(service=service, options=opts)
+
+
+def _find_chromedriver() -> str | None:
+    """Find chromedriver binary on Railway nix or PATH."""
+    # Check common Railway nix paths
+    import glob, shutil
+    candidates = glob.glob("/nix/store/*chromium*/bin/chromedriver")
+    if candidates:
+        return candidates[0]
+    # Check PATH
+    found = shutil.which("chromedriver")
+    return found
+
+
+def _find_chromium() -> str | None:
+    """Find chromium binary on Railway nix or PATH."""
+    import glob, shutil
+    candidates = glob.glob("/nix/store/*chromium*/bin/chromium")
+    if candidates:
+        return candidates[0]
+    candidates = glob.glob("/nix/store/*chromium*/bin/chromium-browser")
+    if candidates:
+        return candidates[0]
+    for name in ("chromium", "chromium-browser", "google-chrome"):
+        found = shutil.which(name)
+        if found:
+            return found
+    return None
 
 
 def run_scrape(keyword: str, pincode: str) -> list:
@@ -60,7 +105,7 @@ def run_scrape(keyword: str, pincode: str) -> list:
         wait = WebDriverWait(browser, 15)
         logger.info("Loaded Blinkit homepage.")
 
-        # ── 1. Enter PIN code ───────────────────────────────────
+        # ── 1. Enter PIN code ────────────────────────────────────
         logger.info(f"Entering PIN code: {pincode}")
         location_box = wait.until(
             EC.presence_of_element_located((By.XPATH, '//input[@placeholder="search delivery location"]'))
@@ -86,7 +131,7 @@ def run_scrape(keyword: str, pincode: str) -> list:
         except Exception:
             pass
 
-        # ── 4. Open search bar ──────────────────────────────────
+        # ── 4. Open search bar ───────────────────────────────────
         logger.info("Opening search bar...")
         initial_search_wrapper = wait.until(
             EC.presence_of_element_located((By.XPATH, '//div[contains(@class,"SearchBar__AnimationWrapper")]'))
@@ -105,7 +150,7 @@ def run_scrape(keyword: str, pincode: str) -> list:
                 initial_search_wrapper = browser.find_element(By.XPATH, '//div[contains(@class,"SearchBar__AnimationWrapper")]')
         sleep(1)
 
-        # ── 5. Type keyword and search ──────────────────────────
+        # ── 5. Type keyword and search ───────────────────────────
         logger.info(f"Searching for '{keyword}'...")
         search_input = wait.until(
             EC.visibility_of_element_located((By.XPATH, '//input[contains(@class,"SearchBarContainer__Input")]'))
@@ -115,13 +160,13 @@ def run_scrape(keyword: str, pincode: str) -> list:
         search_input.send_keys(Keys.ENTER)
         sleep(5)
 
-        # ── 6. Wait for product cards ───────────────────────────
+        # ── 6. Wait for product cards ────────────────────────────
         CARD_XPATH = '//div[contains(@class,"categories-table")]//div[contains(@class,"tw-relative tw-flex tw-h-full tw-flex-col")]'
         wait.until(EC.presence_of_element_located((By.XPATH, CARD_XPATH)))
         all_cards = browser.find_elements(By.XPATH, CARD_XPATH)
-        logger.info(f"Found {len(all_cards)} cards initially. Processing top 10...")
+        logger.info(f"Found {len(all_cards)} cards. Processing top 10...")
 
-        # ── 7. Loop through top 10 ──────────────────────────────
+        # ── 7. Loop through top 10 ───────────────────────────────
         for rank in range(1, 11):
             logger.info(f"--- Processing Rank {rank} ---")
 
@@ -142,12 +187,11 @@ def run_scrape(keyword: str, pincode: str) -> list:
                 logger.warning(f"Could not find valid card for rank {rank}. Skipping.")
                 continue
 
-            # Defaults
-            product_name     = "N/A"
-            unit_quantity    = "N/A"
-            selling_price    = "N/A"
-            delivery_time    = "N/A"
-            listing_type     = "Organic"
+            product_name        = "N/A"
+            unit_quantity       = "N/A"
+            selling_price       = "N/A"
+            delivery_time       = "N/A"
+            listing_type        = "Organic"
             available_inventory = 0
 
             try:
@@ -190,7 +234,7 @@ def run_scrape(keyword: str, pincode: str) -> list:
                 except NoSuchElementException:
                     listing_type = "Organic"
 
-                # ── Inventory check ─────────────────────────────
+                # ── Inventory check ──────────────────────────────
                 logger.info(f"  Checking inventory for: {product_name}")
                 browser.execute_script("arguments[0].scrollIntoView({block:'center'});", current_card)
                 sleep(1.5)
@@ -209,7 +253,6 @@ def run_scrape(keyword: str, pincode: str) -> list:
                 if not add_div:
                     raise Exception("Could not click initial ADD div")
 
-                # Click + until stuck
                 PLUS_SELECTORS = [
                     './/button[.//span[contains(@class,"icon-plus")]]',
                     './/span[contains(@class,"icon-plus")]/parent::button',
@@ -217,11 +260,9 @@ def run_scrape(keyword: str, pincode: str) -> list:
                     './/*[contains(@class,"icon-plus")]',
                     './/button[contains(@class,"plus") or contains(@class,"increment")]',
                     './/*[@aria-label="increase quantity" or @aria-label="add one more"]',
-                    './/div[@data-pf="reset"]/following-sibling::*[1][@role="button"]',
-                    './/div[@data-pf="reset" and translate(text(),"0123456789","")=""]',
                 ]
 
-                last_qty = 0
+                last_qty    = 0
                 current_qty = 0
                 for attempt in range(100):
                     current_card = wait.until(EC.presence_of_element_located((By.XPATH, f'({CARD_XPATH})[position()={rank}]')))
@@ -236,7 +277,7 @@ def run_scrape(keyword: str, pincode: str) -> list:
                         break
 
                     if current_qty == last_qty and current_qty > 0:
-                        logger.info(f"    Qty stuck at {current_qty} — max inventory reached!")
+                        logger.info(f"    Qty stuck at {current_qty} — max inventory!")
                         break
 
                     plus_elem = None
@@ -257,23 +298,20 @@ def run_scrape(keyword: str, pincode: str) -> list:
                     last_qty = current_qty
 
                 available_inventory = current_qty
-                logger.info(f"  Inventory: {available_inventory}")
+                logger.info(f"  Final Inventory: {available_inventory}")
 
-                # ── Reset quantity back to 0 ─────────────────────
+                # ── Reset to 0 ───────────────────────────────────
                 MINUS_SELECTORS = [
                     './/button[.//span[contains(@class,"icon-minus")]]',
                     './/span[contains(@class,"icon-minus")]/parent::button',
-                    './/button[contains(@class,"tw-flex") and @data-pf="reset" and not(.//span[contains(@class,"icon-plus")])]',
                     './/*[contains(@class,"icon-minus")]',
                     './/button[contains(@class,"minus") or contains(@class,"decrement")]',
-                    './/*[@aria-label="decrease quantity" or @aria-label="remove one"]',
                 ]
-                reset_attempts = 0
-                while reset_attempts < available_inventory + 10:
+                for _ in range(available_inventory + 10):
                     current_card = wait.until(EC.presence_of_element_located((By.XPATH, f'({CARD_XPATH})[position()={rank}]')))
                     try:
                         qty_div = current_card.find_element(By.XPATH, './/div[@data-pf="reset" and string-length(text())>0 and not(contains(text(),"ADD")) and translate(text(),"0123456789","")=""]')
-                        if qty_div.text.strip().isdigit() and int(qty_div.text.strip()) == 0:
+                        if qty_div.text.strip() == "0":
                             break
                     except NoSuchElementException:
                         break
@@ -293,7 +331,6 @@ def run_scrape(keyword: str, pincode: str) -> list:
                     else:
                         break
                     sleep(0.3)
-                    reset_attempts += 1
 
                 try:
                     browser.execute_script("arguments[0].click();", browser.find_element(By.TAG_NAME, "body"))
